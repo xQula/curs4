@@ -11,6 +11,7 @@ private:
     std::queue<std::function<Func>> protected_queue_;
     std::mutex mtx_;
     std::condition_variable con_var_;
+    std::mutex mtx_one_;
 public:
     explicit ProtectedQueue()= default;
     void push_queue(const std::function<Func>& func) {
@@ -23,6 +24,10 @@ public:
         con_var_.wait(s_lock);
         return protected_queue_.front();
     }
+    void pop_queue(){
+        std::scoped_lock s_lock{mtx_one_};
+        protected_queue_.pop();
+    }
 };
 
 
@@ -33,8 +38,10 @@ private:
     std::weak_ptr<ProtectedQueue<Func>> w_ptr_queue;
     std::mutex mtx;
     void work() {
-        if (auto strong_ptr = w_ptr_queue.lock())
+        if (auto strong_ptr = w_ptr_queue.lock()) {
             strong_ptr->get_queue()();
+            strong_ptr->pop_queue();
+        }
     }
 public:
     explicit PoolThread(const size_t processor_count, const  std::shared_ptr<ProtectedQueue<Func>> &sh_ptr) : w_ptr_queue(sh_ptr) {
@@ -62,6 +69,7 @@ int main() {
             std::this_thread::sleep_for(std::chrono::milliseconds(2000));
         pool->submit(print_num);
     }
-    
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     return 0;
 }
