@@ -18,11 +18,10 @@ public:
         protected_queue_.push(func);
         con_var_.notify_one();
     }
-    void get_queue() {
+    std::function<Func> get_queue() {
         std::unique_lock<std::mutex> s_lock{ mtx_ };
         con_var_.wait(s_lock);
-        protected_queue_.front()();
-        protected_queue_.pop();
+        return protected_queue_.front();
     }
 };
 
@@ -32,9 +31,10 @@ class PoolThread {
 private:
     std::vector<std::thread> thread_pool;
     std::weak_ptr<ProtectedQueue<Func>> w_ptr_queue;
+    std::mutex mtx;
     void work() {
         if (auto strong_ptr = w_ptr_queue.lock())
-            strong_ptr->get_queue();
+            strong_ptr->get_queue()();
     }
 public:
     explicit PoolThread(const size_t processor_count, const  std::shared_ptr<ProtectedQueue<Func>> &sh_ptr) : w_ptr_queue(sh_ptr) {
@@ -59,9 +59,9 @@ int main() {
     auto pool = std::make_unique<PoolThread<void()>>(processor_count, std::make_shared<ProtectedQueue<void()>>());
     for (size_t i = 0; i < processor_count; ++i) {
         if (!(i % 2))
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
         pool->submit(print_num);
     }
-
+    
     return 0;
 }
