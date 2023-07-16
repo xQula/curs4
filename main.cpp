@@ -21,7 +21,7 @@ public:
     }
     std::function<Func> get_queue() {
         std::unique_lock<std::mutex> s_lock{ mtx_ };
-        con_var_.wait(s_lock);
+        con_var_.wait(s_lock, [this]{return  !protected_queue_.empty();});
         return protected_queue_.front();
     }
     void pop_queue(){
@@ -63,13 +63,13 @@ void print_num() {
 
 int main() {
     const auto processor_count = std::thread::hardware_concurrency();
-    auto pool = std::make_unique<PoolThread<void()>>(processor_count, std::make_shared<ProtectedQueue<void()>>());
+    auto sh_ptr_queue = std::make_shared<ProtectedQueue<void()>>();
+    auto pool = std::make_unique<PoolThread<void()>>(processor_count, sh_ptr_queue);
     for (size_t i = 0; i < processor_count; ++i) {
         if (!(i % 2))
             std::this_thread::sleep_for(std::chrono::milliseconds(2000));
         pool->submit(print_num);
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     return 0;
 }
